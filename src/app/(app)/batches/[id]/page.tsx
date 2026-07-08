@@ -7,7 +7,7 @@ const STATUS_TO_STEP: Record<string, string> = {
   failed: "mapping",
   ready: "attachments",
   converting: "convert",
-  queued: "preview",
+  queued: "send",
   sending: "send",
   partially_sent: "send",
   completed: "summary",
