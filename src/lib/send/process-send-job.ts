@@ -2,14 +2,24 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { acquireLock, releaseLock } from "@/lib/redis/locks";
 import { sendMailViaGraph } from "@/lib/graph/send-mail";
+import { triggerPowerAutomateSend } from "@/lib/power-automate/send-mail";
 import { renderPrealertEmail } from "@/lib/email/templates/prealert-v1";
-import { logAudit } from "@/lib/audit/log";
-
-type AdminClient = ReturnType<typeof createAdminClient>;
+import { finalizeSendSuccess, finalizeSendFailure } from "./finalize-send";
 
 export interface ProcessSendResult {
-  status: "sent" | "already_sent" | "failed" | "retrying";
+  status: "sent" | "already_sent" | "failed" | "retrying" | "processing";
   reason?: string;
+}
+
+/**
+ * Which transport actually sends the email. `power_automate` is the
+ * default because FedEx's tenant does not grant admin consent for a
+ * custom Graph app registration — see docs/POWER_AUTOMATE.md. `graph` is
+ * kept fully working as a fallback (local testing, or if tenant policy
+ * ever changes) via MAIL_DRIVER=graph.
+ */
+function mailDriver(): "power_automate" | "graph" {
+  return process.env.MAIL_DRIVER === "graph" ? "graph" : "power_automate";
 }
 
 /**
@@ -17,6 +27,14 @@ export interface ProcessSendResult {
  * local `inline` queue driver and the QStash-invoked webhook route — so
  * there is exactly one code path for the actual send logic regardless of
  * which queue driver dispatched it.
+ *
+ * With MAIL_DRIVER=power_automate this function's job ends at "handed the
+ * job to the flow" (status: "processing"), not "email sent" — the flow
+ * reports the real outcome asynchronously via
+ * POST /api/power-automate/callback, which calls finalizeSendSuccess /
+ * finalizeSendFailure directly. With MAIL_DRIVER=graph, this function
+ * still finalizes synchronously, since the Graph call itself confirms
+ * the send before returning.
  */
 export async function processSendJob(
   batchItemId: string,
@@ -65,7 +83,9 @@ export async function processSendJob(
       : batchRun?.mailbox_configs;
 
     if (!mailbox) {
-      return await failItem(admin, item, "No mailbox is configured for this batch.");
+      const reason = "No mailbox is configured for this batch.";
+      await finalizeSendFailure(admin, item, reason);
+      return { status: "failed", reason };
     }
 
     const { data: assets } = await admin
@@ -105,6 +125,26 @@ export async function processSendJob(
       })
       .eq("id", item.id);
 
+    const driver = mailDriver();
+
+    if (driver === "power_automate") {
+      await triggerPowerAutomateSend({
+        batchItemId: item.id,
+        fromMailbox: mailbox.operational_mailbox,
+        to: [item.consignee_email],
+        cc: [mailbox.tagged_mailbox],
+        subject,
+        htmlBody: html,
+        attachments,
+      });
+
+      // The flow accepted the job (202) and will report the real outcome
+      // asynchronously to /api/power-automate/callback. This job's own
+      // work — triggering the send — is done; `batch_items` correctly
+      // stays "processing" until that callback finalizes it.
+      return { status: "processing" };
+    }
+
     const result = await sendMailViaGraph({
       fromMailbox: mailbox.operational_mailbox,
       to: [item.consignee_email],
@@ -114,70 +154,26 @@ export async function processSendJob(
       attachments,
     });
 
-    const now = new Date().toISOString();
-
-    await admin
-      .from("batch_items")
-      .update({ send_status: "sent", send_completed_at: now })
-      .eq("id", item.id);
-
-    await admin.from("email_events").insert({
-      batch_run_id: item.batch_run_id,
-      batch_item_id: item.id,
-      sub_batch_id: item.sub_batch_id,
-      awb: item.awb,
-      direction: "outbound",
-      message_id: result.messageId,
-      internet_message_id: result.internetMessageId,
-      conversation_id: result.conversationId,
+    await finalizeSendSuccess(admin, item, {
       subject,
-      body_clean: html,
-      sender_email: mailbox.operational_mailbox,
-      recipient_emails: [item.consignee_email, mailbox.tagged_mailbox],
-      sent_at: now,
-    });
-
-    // M5 seam: a case exists for every AWB the moment it's actually sent,
-    // rather than waiting for the reply-ingestion phase to create one —
-    // the same upsert path that phase will reuse on reply.
-    await admin.from("awb_cases").upsert(
-      {
-        awb: item.awb,
-        latest_batch_run_id: item.batch_run_id,
-        current_status: "awaiting_reply",
-      },
-      { onConflict: "awb" },
-    );
-
-    await Promise.all([
-      item.sub_batch_id
-        ? admin.rpc("increment_sub_batch_counter", {
-            p_sub_batch_id: item.sub_batch_id,
-            p_column: "sent_count",
-          })
-        : Promise.resolve(),
-      admin.rpc("increment_batch_run_counter", {
-        p_batch_run_id: item.batch_run_id,
-        p_column: "sent_count",
-      }),
-    ]);
-
-    await logAudit({
-      actorUserId: null,
-      entityType: "batch_items",
-      entityId: item.id,
-      action: "sent",
-      metadata: { awb: item.awb },
+      html,
+      senderMailbox: mailbox.operational_mailbox,
+      recipientEmails: [item.consignee_email, mailbox.tagged_mailbox],
+      messageId: result.messageId,
+      internetMessageId: result.internetMessageId,
+      conversationId: result.conversationId,
     });
 
     return { status: "sent" };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown send error.";
+    const message =
+      error instanceof Error ? error.message : "Unknown send error.";
     const attemptCount = (item.attempt_count ?? 0) + 1;
     const maxAttempts = item.max_attempts ?? 5;
 
     if (attemptCount >= maxAttempts) {
-      return await failItem(admin, item, message, attemptCount);
+      await finalizeSendFailure(admin, item, message, attemptCount);
+      return { status: "failed", reason: message };
     }
 
     await admin
@@ -193,35 +189,4 @@ export async function processSendJob(
   } finally {
     await releaseLock(lockKey);
   }
-}
-
-async function failItem(
-  admin: AdminClient,
-  item: { id: string; batch_run_id: string; sub_batch_id: string | null },
-  reason: string,
-  attemptCount?: number,
-): Promise<ProcessSendResult> {
-  await admin
-    .from("batch_items")
-    .update({
-      send_status: "failed",
-      failure_reason: reason,
-      ...(attemptCount !== undefined ? { attempt_count: attemptCount } : {}),
-    })
-    .eq("id", item.id);
-
-  await Promise.all([
-    item.sub_batch_id
-      ? admin.rpc("increment_sub_batch_counter", {
-          p_sub_batch_id: item.sub_batch_id,
-          p_column: "failed_count",
-        })
-      : Promise.resolve(),
-    admin.rpc("increment_batch_run_counter", {
-      p_batch_run_id: item.batch_run_id,
-      p_column: "failed_count",
-    }),
-  ]);
-
-  return { status: "failed", reason };
 }

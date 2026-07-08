@@ -108,11 +108,19 @@ that won't actually receive webhook traffic.
 
 ***
 
-## 5. Azure AD app registration (outbound mail)
+## 5. Outbound mail transport
 
-This is the most involved step. The send engine calls Microsoft Graph
-directly (not Power Automate) to send pre-alert emails as your shared
-mailbox.
+**Default: Power Automate.** FedEx's Entra tenant does not grant admin
+consent for a custom Graph app registration (`Mail.Send` Application
+permission gets rejected — "not granted for myfedex"), so the send engine
+sends through a shared Power Automate flow instead of Graph directly. See
+**[docs/POWER_AUTOMATE.md](POWER_AUTOMATE.md)** for the full end-to-end
+setup — the service account, Exchange Send As grants, and building the
+flow itself. Set `MAIL_DRIVER=power_automate` (already the default).
+
+**Fallback: direct Microsoft Graph.** Kept fully working via
+`MAIL_DRIVER=graph`, for local testing or in case tenant policy ever
+changes to allow it:
 
 1. In [Entra ID](https://entra.microsoft.com) (Azure AD), go to **App
    registrations → New registration**. Any name/redirect URI is fine (no
@@ -125,7 +133,8 @@ mailbox.
    shown again).
 4. Go to **API permissions → Add a permission → Microsoft Graph →
    Application permissions**, and add **`Mail.Send`**. Click **Grant admin
-   consent** (requires a Global/Privileged Role Admin).
+   consent** (requires a Global/Privileged Role Admin — this is the exact
+   step FedEx's tenant currently blocks).
 5. **Strongly recommended:** restrict the app to only the specific shared
    mailbox(es) it needs, so a leaked client secret can't send as *any*
    mailbox in the tenant. Ask your Exchange admin to run, in Exchange
@@ -218,9 +227,10 @@ setup step on first login.
 - **Manual send test (Milestone 4):** create a small batch (5-10 rows)
   using your own email addresses as recipients, launch it, and confirm
   real emails arrive with attachments. Do this once against a real Vercel
-  Preview deployment with `QUEUE_DRIVER=qstash` before considering the
-  send engine done — the local `inline` driver never exercises the real
-  QStash → webhook → Graph path.
+  Preview deployment with `QUEUE_DRIVER=qstash` and `MAIL_DRIVER=
+  power_automate` before considering the send engine done — the local
+  `inline` driver never exercises the real QStash → webhook → Power
+  Automate → callback path (see `docs/POWER_AUTOMATE.md`).
 - **Case claim race (Milestone 5):** open the same case in two browser
   sessions (different seeded users), claim it in one, then attempt to
   claim it in the other — the second should get a friendly conflict
