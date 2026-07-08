@@ -9,6 +9,13 @@ const STATUS_STYLES: Record<string, string> = {
   completed: "bg-emerald-50 text-emerald-700",
   failed: "bg-red-50 text-red-700",
   archived: "bg-slate-100 text-slate-400",
+  // Case ownership statuses (spec 7.7)
+  unassigned: "bg-slate-100 text-slate-500",
+  claimed: "bg-sky-50 text-sky-700",
+  assigned: "bg-sky-50 text-sky-700",
+  review: "bg-amber-50 text-amber-700",
+  closed: "bg-emerald-50 text-emerald-700",
+  released: "bg-slate-100 text-slate-400",
 };
 
 export function StatusBadge({ status }: { status: string }) {
