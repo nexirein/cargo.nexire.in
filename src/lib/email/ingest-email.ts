@@ -35,6 +35,16 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
   const admin = createAdminClient();
   const normalizedId = email.messageId.replace(/[<>]/g, "").trim();
 
+  // Ignore emails from our own system — the IMAP inbox may contain outbound
+  // pre-alerts that were copied to INBOX. Processing them would create
+  // spurious drafts and auto-replies to ourselves.
+  const selfAddress = (process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "")
+    .toLowerCase()
+    .trim();
+  if (selfAddress && email.from.toLowerCase().includes(selfAddress)) {
+    return { status: "ignored", emailEventId: null, caseId: null };
+  }
+
   const { data: existing } = await admin
     .from("email_events")
     .select("id")
