@@ -266,6 +266,7 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
     if (draft && !draft.flags.includes("low_confidence_draft") && !draft.flags.includes("missing_variables")) {
       const sendResult = await sendMailViaSmtp({
         to: [email.from],
+        cc: email.cc.length > 0 ? email.cc : undefined,
         subject: draft.subject,
         htmlBody: draft.bodyHtml,
         inReplyTo: normalizedId,

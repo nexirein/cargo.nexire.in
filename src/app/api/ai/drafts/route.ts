@@ -162,8 +162,11 @@ export async function POST(request: Request) {
       : { data: null };
 
     const { data: emailEvent } = draft.email_event_id
-      ? await admin.from("email_events").select("sender_email, message_id").eq("id", draft.email_event_id).maybeSingle()
+      ? await admin.from("email_events").select("sender_email, message_id, raw_payload").eq("id", draft.email_event_id).maybeSingle()
       : { data: null };
+
+    // Recover CC recipients from the inbound email's raw_payload
+    const inboundCc: string[] = emailEvent?.raw_payload?.cc ?? [];
 
     // Resolve the customer's email as robustly as possible: the inbound
     // email sender first, then the case's shipment consignee email.
@@ -232,6 +235,7 @@ export async function POST(request: Request) {
 
       const result = await sendMailViaSmtp({
         to: [recipient],
+        cc: inboundCc.length > 0 ? inboundCc : undefined,
         subject,
         htmlBody: bodyHtml,
         inReplyTo: emailEvent?.message_id ? emailEvent.message_id.replace(/[<>]/g, "") : undefined,
