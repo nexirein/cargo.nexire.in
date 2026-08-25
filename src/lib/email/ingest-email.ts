@@ -62,6 +62,12 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
   ].join(" ");
   const awb = extractAwb(searchText);
 
+  // Strip quoted/reply thread from the body so the classifier only sees the
+  // customer's actual message — not the pre-alert template or previous replies
+  // which contain penalty amounts, dates, and other noise that inflates urgency.
+  const rawBody = email.textBody || email.htmlBody || "";
+  const customerMessage = stripQuotedText(rawBody);
+
   const { data: emailEvent, error: insertError } = await admin
     .from("email_events")
     .insert({
@@ -170,7 +176,7 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
 
   const classification = await classify({
     subject: email.subject,
-    body: email.textBody || email.htmlBody || "",
+    body: customerMessage,
     sender: email.from,
     awb: awb ?? undefined,
     emailEventId: emailEvent.id,
@@ -365,4 +371,36 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
     classification,
     draftCreated,
   };
+}
+
+/**
+ * Strip quoted/reply text from an email body so the classifier only sees the
+ * customer's actual message. Removes:
+ * - Lines starting with ">" (quoted reply markers)
+ * - "On [date], [name] wrote:" patterns (Gmail/Outlook reply headers)
+ * - "-----Original Message-----" separators (Outlook)
+ * - Everything after these markers
+ */
+function stripQuotedText(body: string): string {
+  if (!body) return "";
+
+  const lines = body.split("\n");
+  const cleaned: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Stop at reply/quote markers
+    if (/^On\s+\w+,\s+\w+\s+\d+.*wrote:$/i.test(trimmed)) break;
+    if (/^from:\s*/i.test(trimmed)) break;
+    if (/^-{3,}\s*original message\s*-{3,}$/i.test(trimmed)) break;
+    if (/^-{3,}\s*forwarded message\s*-{3,}$/i.test(trimmed)) break;
+
+    // Skip quoted lines
+    if (trimmed.startsWith(">")) continue;
+
+    cleaned.push(line);
+  }
+
+  return cleaned.join("\n").trim();
 }
