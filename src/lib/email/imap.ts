@@ -47,6 +47,9 @@ function connect() {
     secure: true,
     auth: { user: config.user, pass: config.pass },
     logger: false,
+    connectionTimeout: 10_000,
+    greetingTimeout: 5_000,
+    socketTimeout: 30_000,
   });
 }
 

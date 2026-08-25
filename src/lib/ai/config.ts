@@ -4,17 +4,17 @@ import type { AppConfig, AutoSendPattern } from "@/lib/ai/types";
 
 const DEFAULT_CONFIG: AppConfig = {
   aiEnabled: true,
-  autoSendEnabled: false,
+  autoSendEnabled: true,
   followupEnabled: true,
   callAiEnabled: true,
   classifierVersion: "v1.0.0",
-  draftHoldMinThreshold: 0.8,
+  draftHoldMinThreshold: 0.7,
   vipDomains: [],
   vipSenders: [],
   legalKeywords: ["attorney", "lawsuit", "compliance", "legal notice", "litigation", "regulatory"],
   autoSendPatterns: [],
   autoSendRoutineEnabled: true,
-  autoSendRoutineMinConfidence: 0.8,
+  autoSendRoutineMinConfidence: 0.7,
 };
 
 let cachedConfig: AppConfig | null = null;

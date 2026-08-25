@@ -339,9 +339,12 @@ export async function classify(input: ClassificationInput): Promise<Classificati
       ensemble.intent === "update" ||
       ensemble.intent === "docs_request");
 
+  // Downgrade urgency when the rule system says normal/low and there are no
+  // genuine escalation signals — regardless of which source (rule/ml/llm)
+  // contributed the high urgency. This prevents LLM over-classification from
+  // blocking routine auto-replies.
   if (
     ensemble.urgency === "high" &&
-    ensemble.method === "llm" &&
     ruleUrgency !== "high" &&
     ruleUrgency !== "critical" &&
     isRoutineRequest &&
