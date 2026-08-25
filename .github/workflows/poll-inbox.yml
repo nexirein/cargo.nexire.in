@@ -1,0 +1,15 @@
+name: Poll Inbox
+on:
+  schedule:
+    - cron: '*/2 * * * *'
+  workflow_dispatch:
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Poll inbox for new replies
+        run: |
+          curl -s -X GET \
+            "https://cargo.nexire.in/api/inbox/poll?cron_key=${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

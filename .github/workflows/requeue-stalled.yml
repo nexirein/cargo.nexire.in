@@ -1,0 +1,15 @@
+name: Requeue Stalled Sends
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  requeue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Requeue stalled send jobs
+        run: |
+          curl -s -X GET \
+            "https://cargo.nexire.in/api/cron/requeue-stalled" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

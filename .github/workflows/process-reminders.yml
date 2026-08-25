@@ -1,0 +1,15 @@
+name: Process Reminders
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Process due reminders
+        run: |
+          curl -s -X GET \
+            "https://cargo.nexire.in/api/cron/process-reminders?cron_key=${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
