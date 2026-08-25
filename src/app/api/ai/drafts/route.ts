@@ -245,12 +245,13 @@ export async function POST(request: Request) {
 
       await admin.from("email_events").insert({
         direction: "outbound",
-        message_id: `draft-sent-${draftId}-${Date.now()}`,
+        message_id: result.messageId?.replace(/[<>]/g, "").trim() ?? `draft-sent-${draftId}-${Date.now()}`,
         awb: caseData?.awb ?? null,
         subject,
         body_clean: bodyHtml.replace(/<[^>]*>/g, ""),
         sender_email: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "",
         recipient_emails: [recipient],
+        in_reply_to: emailEvent?.message_id ? emailEvent.message_id.replace(/[<>]/g, "").trim() : null,
         raw_payload: { draftId, approved: true },
         received_at: now,
       });

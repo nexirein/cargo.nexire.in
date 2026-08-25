@@ -78,6 +78,7 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
       body_clean: email.textBody || email.htmlBody || "",
       sender_email: email.from,
       recipient_emails: [...new Set([...email.to, ...email.cc])],
+      in_reply_to: email.inReplyTo?.replace(/[<>]/g, "").trim() ?? null,
       conversation_id: null,
       raw_payload: {
         ...email,
@@ -273,12 +274,13 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
 
       await admin.from("email_events").insert({
         direction: "outbound",
-        message_id: `auto-send-${emailEvent.id}-${Date.now()}`,
+        message_id: sendResult.messageId?.replace(/[<>]/g, "").trim() ?? `auto-send-${emailEvent.id}-${Date.now()}`,
         awb,
         subject: draft.subject,
         body_clean: draft.bodyText,
         sender_email: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "",
         recipient_emails: [email.from],
+        in_reply_to: normalizedId,
         raw_payload: { autoSend: true, route: "ai_auto_send", classification },
         received_at: now,
       });

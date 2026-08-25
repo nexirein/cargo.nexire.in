@@ -45,6 +45,12 @@ export async function generateDraft(input: DraftInput): Promise<DraftResult> {
   if (resolvedInput.doNumber) variablesUsed.push("do_number");
   if (resolvedInput.broker) variablesUsed.push("broker");
 
+  // Flag when the AI lacks shipment facts to ground its reply — the draft
+  // lands in AI Drafts for human approval instead of auto-sending blind.
+  if (input.awb && !shipmentContext) {
+    flags.push("missing_variables");
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return {
