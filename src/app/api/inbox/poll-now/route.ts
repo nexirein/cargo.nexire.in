@@ -12,15 +12,15 @@ export const maxDuration = 120;
  * instead of waiting for the 5-minute cron window (critical for live demos).
  */
 export async function POST() {
-  requireRole(
-    await getCurrentAppUser(),
-    "admin",
-    "lead",
-    "operator",
-    "reviewer",
-  );
-
   try {
+    requireRole(
+      await getCurrentAppUser(),
+      "admin",
+      "lead",
+      "operator",
+      "reviewer",
+    );
+
     const result = await pollAndIngest();
     return NextResponse.json(result);
   } catch (error) {

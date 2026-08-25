@@ -54,7 +54,7 @@ export const NAV_ITEMS: NavItem[] = [
     section: "prior",
   },
   {
-    label: "Review Queue",
+    label: "Human Review",
     href: "/human-review?phase=pre_alert",
     roles: ["admin", "lead", "reviewer"],
     icon: "ClipboardCheck",

@@ -57,14 +57,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch master data for auto-fill
-    const [{ data: clearanceMaster }, { data: brokerMaster }] = await Promise.all([
-      admin.from("company_clearance_master").select("company_name, clearance_type, source, times_seen, email"),
-      admin.from("broker_master").select("company_name, company_name_normalized, broker_type, broker_name, match_type"),
-    ]);
-
-    const masterIdx = buildMasterIndex(clearanceMaster ?? []);
-    const brokerIdx = buildBrokerIndex(brokerMaster ?? []);
+    const masterIdx = buildMasterIndex([]);
+    const brokerIdx = buildBrokerIndex([]);
 
     interface FillItem {
       rowNumber: number;
