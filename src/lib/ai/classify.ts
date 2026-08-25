@@ -319,7 +319,7 @@ export async function classify(input: ClassificationInput): Promise<Classificati
 
   const ensemble = ensembleFusion(ruleResult.classification, mlResult, llmResult);
 
-  // Recalibrate LLM-inflated urgency. A routine information/confirmation
+  // Recalibrate inflated urgency. A routine information/confirmation
   // request that the rule system rated low/normal should not be blocked from
   // auto-send just because the LLM verifier flagged "high". Urgency words that
   // commonly appear in the quoted pre-alert template (deadline, penalty, asap)
@@ -339,15 +339,12 @@ export async function classify(input: ClassificationInput): Promise<Classificati
       ensemble.intent === "update" ||
       ensemble.intent === "docs_request");
 
-  // Downgrade urgency when the rule system says normal/low and there are no
-  // genuine escalation signals — regardless of which source (rule/ml/llm)
-  // contributed the high urgency. This prevents LLM over-classification from
-  // blocking routine auto-replies.
+  // Aggressive urgency downgrade: if urgency is "high" but there are NO
+  // genuine escalation signals in the email text, force it to "normal".
+  // This prevents the LLM from blocking routine auto-replies with inflated
+  // urgency on vague or unclear queries.
   if (
     ensemble.urgency === "high" &&
-    ruleUrgency !== "high" &&
-    ruleUrgency !== "critical" &&
-    isRoutineRequest &&
     !hasBlockingSignal
   ) {
     ensemble.urgency = "normal";
