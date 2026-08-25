@@ -20,6 +20,9 @@ export async function createBatch(formData: FormData) {
     runName: formData.get("runName"),
     mailboxConfigId: formData.get("mailboxConfigId"),
     subBatchSize: Number(formData.get("subBatchSize") ?? 25),
+    templateId: formData.get("templateId") || undefined,
+    phase: formData.get("phase") || "pre_alert",
+    preAlertType: formData.get("preAlertType") || "u_bond",
   });
 
   if (!parsed.success) {
@@ -39,6 +42,9 @@ export async function createBatch(formData: FormData) {
       mailbox_config_id: parsed.data.mailboxConfigId,
       created_by: user.id,
       sub_batch_size: parsed.data.subBatchSize,
+      template_id: parsed.data.templateId ?? null,
+      phase: parsed.data.phase,
+      pre_alert_type: parsed.data.preAlertType,
       status: "draft",
     })
     .select("id")

@@ -38,6 +38,15 @@ export async function enqueueSend(
   }
 
   const { processSendJob } = await import("@/lib/send/process-send-job");
-  await processSendJob(batchItemId);
+
+  // inline driver runs once with no QStash retries — retry up to max_attempts
+  // so items don't get stuck in "retrying" state forever. Uses a 2s backoff
+  // between retries to allow Redis locks to expire.
+  const MAX_ATTEMPTS = 5;
+  let result = await processSendJob(batchItemId);
+  for (let attempt = 1; result.status === "retrying" && attempt < MAX_ATTEMPTS; attempt++) {
+    await new Promise((r) => setTimeout(r, 2_000));
+    result = await processSendJob(batchItemId);
+  }
   return { qstashMessageId: null };
 }

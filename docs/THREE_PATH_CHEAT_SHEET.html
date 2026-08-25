@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI 3-Path Demo Cheat Sheet</title>
+<style>
+  @page { size: Letter portrait; margin: 10mm 11mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; margin: 0; color: #0f172a; font-size: 10.5px; line-height: 1.32; }
+  h1 { font-size: 17px; margin: 0 0 2px; letter-spacing: -0.2px; }
+  .sub { color: #475569; font-size: 10px; margin-bottom: 8px; }
+  .grid { display: flex; gap: 8px; }
+  .col { flex: 1; }
+  .path { border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 8px; margin-bottom: 8px; page-break-inside: avoid; }
+  .path.green { border-color: #16a34a; }
+  .path.amber { border-color: #d97706; }
+  .path.red   { border-color: #dc2626; }
+  .path h2 { margin: 0 0 4px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .badge { font-size: 8.5px; font-weight: 700; padding: 1px 7px; border-radius: 99px; color: #fff; }
+  .badge.green { background: #16a34a; }
+  .badge.amber { background: #d97706; }
+  .badge.red   { background: #dc2626; }
+  .badge.gray  { background: #64748b; }
+  .step { margin-bottom: 7px; }
+  .step .tag { display:inline-block; font-weight:700; font-size:9.5px; margin-bottom:1px; }
+  .email { border: 1px solid #e2e8f0; border-left: 3px solid #94a3b8; background: #f8fafc; border-radius: 4px; padding: 4px 6px; margin-top: 3px; font-size: 9.3px; }
+  .email div { margin: 1px 0; }
+  .email b { color: #334155; }
+  .email .body { font-family: Menlo, Consolas, monospace; font-size: 8.8px; color: #1e293b; margin-left: 8px; }
+  .do { font-size: 9.3px; color: #075985; margin-top: 3px; }
+  .do b { color: #0369a1; }
+  .result { font-size: 9.3px; color: #166534; margin-top: 2px; }
+  .foot { margin-top: 6px; border-top: 1px solid #e2e8f0; padding-top: 5px; font-size: 8.8px; color: #475569; }
+  .foot b { color: #334155; }
+</style>
+</head>
+<body>
+
+<h1>AI Auto-Reply — 3-Path Live Demo Cheat Sheet</h1>
+<div class="sub">Send each email <b>from the listed consignee account</b> to <b>cargopaf.demo@gmail.com</b>, then click <b>Poll mailbox now</b> on <b>/ai/replies</b> (or wait &le;1 min for the cron).</div>
+
+<div class="grid">
+  <div class="col">
+    <!-- PATH 1 -->
+    <div class="path green">
+      <h2><span class="badge green">PROVEN SAFE</span> AI sends it &mdash; zero judgment</h2>
+
+      <div class="step">
+        <div class="tag">1A &middot; Freight FAQ &rarr; auto-reply sent</div>
+        <div class="email">
+          <div><b>From:</b> test1alstom@gmail.com</div>
+          <div><b>Subject:</b> Re: Pre-Alert 874284953656 / PINKCITY JEWELHOUSE</div>
+          <div class="body">What are the freight charges and currency for my shipment AWB 874284953656?</div>
+        </div>
+        <div class="do"><b>Do:</b> Poll mailbox now &rarr; show auto-reply in <b>/ai/replies</b> (~10s).</div>
+      </div>
+
+      <div class="step">
+        <div class="tag">1B &middot; Payment confirm &rarr; auto-acknowledged</div>
+        <div class="email">
+          <div><b>From:</b> bs9932338847@gmail.com</div>
+          <div><b>Subject:</b> Re: Pre-Alert 874284953654 / GALLANT JEWELRY</div>
+          <div class="body">Payment done. Please confirm receipt of payment for AWB 874284953654. UTR 789456123.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="tag">1C/1D &middot; OOO + bounce &rarr; handled silently (no draft)</div>
+        <div class="email">
+          <div><b>From:</b> cutq2024@gmail.com &middot; <b>Subject:</b> Automatic reply: Out of Office</div>
+          <div class="body">Thank you for your email. I am out of office until Monday and will respond on my return.</div>
+          <div><b>From:</b> mailer-daemon@gmail.com &middot; <b>Subject:</b> Delivery Status Notification (Failure)</div>
+          <div class="body">Delivery has failed for the following recipient: sikder16bipul@gmail.com</div>
+        </div>
+        <div class="result">Result: route = ignore &middot; no reply, no draft, no human.</div>
+      </div>
+    </div>
+
+    <!-- PATH 3 -->
+    <div class="path red">
+      <h2><span class="badge red">ESCALATED</span> Human review queue &mdash; AI never replies</h2>
+
+      <div class="step">
+        <div class="tag">3A &middot; Legal keyword</div>
+        <div class="email">
+          <div><b>From:</b> nexire.in@gmail.com</div>
+          <div><b>Subject:</b> Re: Pre-Alert 874284953658 / PRERANA INNOTECH</div>
+          <div class="body">This is a legal notice regarding shipment AWB 874284953658. Our attorney will follow up regarding regulatory compliance.</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="tag">3B &middot; VIP sender (optional)</div>
+        <div class="email">
+          <div><b>From:</b> ceo@company.com</div>
+          <div><b>Subject:</b> Re: Pre-Alert 874284953652 / ALISHKA GLOBAL</div>
+          <div class="body">I need an update on this shipment AWB 874284953652 immediately.</div>
+        </div>
+        <div class="do"><b>Do:</b> Poll &rarr; open <b>/human-review</b> &rarr; case shows <b>awaiting review / unresolved</b>.</div>
+        <div class="result">Result: route = human_review (safety gate) &middot; never auto-replied.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <!-- PATH 2 -->
+    <div class="path amber">
+      <h2><span class="badge amber">DEFAULT</span> AI drafts, human sends</h2>
+
+      <div class="step">
+        <div class="tag">2A &middot; Documents / checklist request</div>
+        <div class="email">
+          <div><b>From:</b> cutq2024@gmail.com</div>
+          <div><b>Subject:</b> Re: Pre-Alert 874284953657 / RITE CONCEPT JEWELS</div>
+          <div class="body">We need the invoice and packing list for AWB 874284953657. Please share them.</div>
+        </div>
+        <div class="do"><b>Do:</b> Poll &rarr; open <b>/ai/drafts</b> &rarr; customer message on top, AI draft below &rarr; click <b>Approve &amp; Send</b> in front of the manager &rarr; it sends as a reply, moves to <b>Sent</b>.</div>
+        <div class="result">Result: route = ai_draft_hold &middot; a person always clicks Send.</div>
+      </div>
+
+      <div class="step">
+        <div class="tag">2B &middot; Follow-up with penalty concern</div>
+        <div class="email">
+          <div><b>From:</b> sikder32bipul@gmail.com</div>
+          <div><b>Subject:</b> Re: Pre-Alert 874284953655 / JAIN GEMS</div>
+          <div class="body">Will we be charged the 5000 penalty if the documents are submitted late for AWB 874284953655?</div>
+        </div>
+        <div class="result">Result: route = ai_draft_hold &middot; draft for human approval.</div>
+      </div>
+    </div>
+
+    <!-- TALKING POINTS -->
+    <div class="path">
+      <h2><span class="badge gray">CLOSE</span> One rule for the manager</h2>
+      <div style="font-size:9.3px;">
+        <b>&#10003; Routine + safe + confident &rarr; automatic.</b><br>
+        <b>&#9881; Needs human judgment &rarr; draft, a person sends.</b><br>
+        <b>&#9888; VIP / legal / new / low-confidence &rarr; straight to the team.</b><br>
+        <br>
+        Every action is logged in <b>/ai/replies</b> (outbound auto-replies) and the
+        case audit trail &mdash; nothing the AI sends is invisible. Replies land in the
+        <b>same email thread</b> (reply, not a new mail).
+      </div>
+    </div>
+
+    <div class="foot">
+      <b>Timing:</b> classify fast-path ~0.3&ndash;0.5s + reply generation ~8s &rarr; end-to-end ~10s per email.<br>
+      <b>Gotchas:</b> include the 12&ndash;15 digit AWB (all bodies above have it) &middot; duplicates are ignored (use a fresh email per run) &middot; escalated cases stay in /human-review until resolved &middot; if you want a rerun, change one word or the UTR number.<br>
+      <b>Verified:</b> 1A/1B auto-send &middot; 1C/1D ignore &middot; 2A/2B draft_hold &middot; 3A/3B human_review.
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

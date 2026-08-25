@@ -36,18 +36,35 @@ export default async function CaseDetailPage({
     .eq("is_active", true)
     .order("full_name", { ascending: true });
 
-  const [{ data: updates }, { data: assignments }] = await Promise.all([
-    supabase
-      .from("case_updates")
-      .select("id, update_type, remarks, created_at, updated_by")
-      .eq("case_id", id)
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("case_assignments")
-      .select("id, assignment_type, reason, created_at, to_user_id, from_user_id")
-      .eq("case_id", id)
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ data: updates }, { data: assignments }, { data: emailEvents }, { data: aiDrafts }] =
+    await Promise.all([
+      supabase
+        .from("case_updates")
+        .select("id, update_type, remarks, created_at, updated_by, actor_type")
+        .eq("case_id", id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("case_assignments")
+        .select(
+          "id, assignment_type, reason, created_at, to_user_id, from_user_id",
+        )
+        .eq("case_id", id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("email_events")
+        .select(
+          "id, direction, subject, body_clean, sender_email, recipient_emails, created_at",
+        )
+        .eq("awb", caseRow.awb)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("ai_drafts")
+        .select(
+          "id, subject, status, confidence, flags, created_at",
+        )
+        .eq("case_id", id)
+        .order("created_at", { ascending: false }),
+    ]);
 
   const actorIds = new Set<string>();
   (updates ?? []).forEach((u) => u.updated_by && actorIds.add(u.updated_by));
@@ -75,6 +92,7 @@ export default async function CaseDetailPage({
       action: u.update_type,
       remarks: u.remarks,
       createdAt: u.created_at,
+      actorType: u.actor_type,
     })),
     ...(assignments ?? []).map((a) => ({
       id: `assignment-${a.id}`,
@@ -88,7 +106,8 @@ export default async function CaseDetailPage({
       createdAt: a.created_at,
     })),
   ].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
 
   return (
@@ -101,6 +120,8 @@ export default async function CaseDetailPage({
         canOverride={canOverrideOwnership(user.role)}
         teamMembers={teamMembers ?? []}
         timeline={timeline}
+        emailEvents={emailEvents ?? []}
+        aiDrafts={aiDrafts ?? []}
       />
     </div>
   );

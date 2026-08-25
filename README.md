@@ -2,24 +2,20 @@
 
 An operations web app that replaces an Excel + Outlook pre-alert workflow:
 batch-upload shipment sheets, convert scanned TIFF invoices to PDF entirely
-in the browser, send pre-alerts through a queued pipeline (Power Automate,
-with direct Microsoft Graph kept as a fallback), and manage AWB-level
+in the browser, send pre-alerts through a queued pipeline (SMTP or Graph
+API), ingest customer replies via IMAP polling, and manage AWB-level
 follow-up ownership with KYC-style claim/assign/release semantics.
 
-This build covers Milestones 1–5 of `docs/fedex_prealert_followup_claude_spec.md`
-(foundation, batch upload, TIFF conversion, send engine, case management).
-The outbound-mail send engine routes through a shared Power Automate flow
-rather than Graph directly, since FedEx's tenant does not grant admin
-consent for a custom Graph app registration — see
-[docs/POWER_AUTOMATE.md](docs/POWER_AUTOMATE.md). The AI decision layer,
-reply ingestion, and reminders remain a deliberate follow-up phase — see
-the spec's section 17 for why.
+This build covers Milestones 1–6 of `docs/fedex_prealert_followup_claude_spec.md`
+(foundation, batch upload, TIFF conversion, send engine, case management,
+inbox ingestion). The AI decision layer and reminders remain a planned
+follow-up phase.
 
 ## Getting started
 
 See **[docs/SETUP.md](docs/SETUP.md)** for the full setup guide (Supabase,
-Upstash, Power Automate, Vercel, seeding). Short version once everything
-there is configured:
+Upstash, SMTP/IMAP, Vercel, seeding). Short version once everything there
+is configured:
 
 ```bash
 nvm use 24
@@ -34,9 +30,9 @@ npm run dev
 
 Next.js 16 (App Router, Turbopack) · TypeScript · Tailwind CSS + shadcn/ui ·
 Supabase (Auth, Postgres, Storage, Realtime) · Upstash Redis + QStash ·
-Power Automate (default mail transport) with Microsoft Graph API
-(`@azure/msal-node`) kept as a fallback · `utif2` + `pdf-lib` for
-client-side TIFF→PDF · TanStack Query · Vitest + Playwright.
+SMTP (nodemailer) with Microsoft Graph API (`@azure/msal-node`) as an
+upgrade path · `utif2` + `pdf-lib` for client-side TIFF→PDF ·
+TanStack Query · Vitest + Playwright.
 
 ## Scripts
 

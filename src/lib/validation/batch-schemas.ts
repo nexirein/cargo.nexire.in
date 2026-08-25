@@ -9,12 +9,17 @@ export const createBatchSchema = z.object({
     .max(120, "Name must be under 120 characters."),
   mailboxConfigId: z.string().uuid("Select a mailbox."),
   subBatchSize: z.union([z.literal(25), z.literal(50)]).default(25),
+  templateId: z.string().uuid("Select a template.").optional(),
+  phase: z.enum(["pre_alert", "post_arrival", "tp_hold"]).default("pre_alert"),
+  preAlertType: z.enum(["u_bond", "consol"]).default("u_bond"),
 });
 
 export const columnMappingSchema = z.object({
   awb: z.string().min(1, "Select the AWB column."),
   consigneeEmail: z.string().min(1, "Select the consignee email column."),
   consigneeName: z.string().optional(),
+  templateType: z.string().optional(),
+  fedexBroker: z.string().optional(),
 });
 
 const emailSchema = z.string().trim().email();
@@ -26,9 +31,34 @@ export interface RowValidationIssue {
   message: string;
 }
 
+export interface EmailStatus {
+  rowNumber: number;
+  awb: string;
+  rawValue: string;
+  extracted: string[];
+  validCount: number;
+  hasIssue: boolean;
+}
+
 export interface RowValidationResult {
   validRows: MappedRow[];
   issues: RowValidationIssue[];
+  emailStatuses: EmailStatus[];
+}
+
+function extractEmails(raw: string): string[] {
+  const parts = raw.split(";").map((s) => s.trim()).filter(Boolean);
+  const emails: string[] = [];
+  for (const part of parts) {
+    const angleMatch = part.match(/<([^>]+)>/);
+    if (angleMatch) {
+      const e = angleMatch[1].trim();
+      if (e) emails.push(e);
+    } else {
+      emails.push(part);
+    }
+  }
+  return emails;
 }
 
 /**
@@ -40,9 +70,11 @@ export interface RowValidationResult {
  */
 export function validateMappedRows(rows: MappedRow[]): RowValidationResult {
   const issues: RowValidationIssue[] = [];
+  const emailStatuses: EmailStatus[] = [];
   const firstSeenAtRow = new Map<string, number>();
 
   for (const row of rows) {
+    let awbIssue = false;
     if (!row.awb) {
       issues.push({
         rowNumber: row.rowNumber,
@@ -50,6 +82,7 @@ export function validateMappedRows(rows: MappedRow[]): RowValidationResult {
         severity: "error",
         message: "AWB is missing.",
       });
+      awbIssue = true;
     } else {
       const firstRow = firstSeenAtRow.get(row.awb);
       if (firstRow !== undefined) {
@@ -59,28 +92,42 @@ export function validateMappedRows(rows: MappedRow[]): RowValidationResult {
           severity: "error",
           message: `Duplicate AWB — already appears on row ${firstRow}.`,
         });
+        awbIssue = true;
       } else {
         firstSeenAtRow.set(row.awb, row.rowNumber);
       }
     }
 
-    const emailResult = row.consigneeEmail
-      ? emailSchema.safeParse(row.consigneeEmail)
-      : null;
-    if (!row.consigneeEmail) {
-      issues.push({
-        rowNumber: row.rowNumber,
-        field: "consigneeEmail",
-        severity: "error",
-        message: "Consignee email is missing.",
-      });
-    } else if (!emailResult?.success) {
-      issues.push({
-        rowNumber: row.rowNumber,
-        field: "consigneeEmail",
-        severity: "error",
-        message: `"${row.consigneeEmail}" is not a valid email.`,
-      });
+    const rawEmail = row.consigneeEmail ?? "";
+    const extracted = extractEmails(rawEmail);
+    const validExtracted = extracted.filter((e) => emailSchema.safeParse(e).success);
+    const hasIssue = validExtracted.length === 0;
+
+    emailStatuses.push({
+      rowNumber: row.rowNumber,
+      awb: row.awb || "(missing)",
+      rawValue: rawEmail,
+      extracted,
+      validCount: validExtracted.length,
+      hasIssue,
+    });
+
+    if (hasIssue && !awbIssue) {
+      if (!rawEmail) {
+        issues.push({
+          rowNumber: row.rowNumber,
+          field: "consigneeEmail",
+          severity: "error",
+          message: "Consignee email is missing.",
+        });
+      } else {
+        issues.push({
+          rowNumber: row.rowNumber,
+          field: "consigneeEmail",
+          severity: "error",
+          message: `No valid email addresses found in "${rawEmail.slice(0, 80)}${rawEmail.length > 80 ? "..." : ""}".`,
+        });
+      }
     }
   }
 
@@ -89,5 +136,5 @@ export function validateMappedRows(rows: MappedRow[]): RowValidationResult {
   );
   const validRows = rows.filter((row) => !errorRows.has(row.rowNumber));
 
-  return { validRows, issues };
+  return { validRows, issues, emailStatuses };
 }

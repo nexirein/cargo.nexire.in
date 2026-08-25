@@ -108,53 +108,70 @@ that won't actually receive webhook traffic.
 
 ***
 
-## 5. Outbound mail transport
+## 5. Mail transport
 
-**Default: Power Automate.** FedEx's Entra tenant does not grant admin
-consent for a custom Graph app registration (`Mail.Send` Application
-permission gets rejected — "not granted for myfedex"), so the send engine
-sends through a shared Power Automate flow instead of Graph directly. See
-**[docs/POWER_AUTOMATE.md](POWER_AUTOMATE.md)** for the full end-to-end
-setup — the service account, Exchange Send As grants, and building the
-flow itself. Set `MAIL_DRIVER=power_automate` (already the default).
+### 5a. SMTP (default — for Gmail / any SMTP server)
 
-**Fallback: direct Microsoft Graph.** Kept fully working via
-`MAIL_DRIVER=graph`, for local testing or in case tenant policy ever
-changes to allow it:
+The send engine uses SMTP by default (`MAIL_DRIVER=smtp`). This works with
+any SMTP provider — Gmail (via App Passwords), Outlook.com, or any
+corporate SMTP relay.
 
-1. In [Entra ID](https://entra.microsoft.com) (Azure AD), go to **App
-   registrations → New registration**. Any name/redirect URI is fine (no
-   redirect URI is needed for this app-only flow).
-2. Copy from the app's **Overview** page:
-   - `AZURE_AD_TENANT_ID` — Directory (tenant) ID
-   - `AZURE_AD_CLIENT_ID` — Application (client) ID
-3. Go to **Certificates & secrets → New client secret**, create one, and
-   copy its value immediately into `AZURE_AD_CLIENT_SECRET` (it's not
-   shown again).
-4. Go to **API permissions → Add a permission → Microsoft Graph →
-   Application permissions**, and add **`Mail.Send`**. Click **Grant admin
-   consent** (requires a Global/Privileged Role Admin — this is the exact
-   step FedEx's tenant currently blocks).
-5. **Strongly recommended:** restrict the app to only the specific shared
-   mailbox(es) it needs, so a leaked client secret can't send as *any*
-   mailbox in the tenant. Ask your Exchange admin to run, in Exchange
-   Online PowerShell:
+**For Gmail:**
 
-   ```powershell
-   New-ApplicationAccessPolicy `
-     -AppId <AZURE_AD_CLIENT_ID> `
-     -PolicyScopeGroupId <shared-mailbox-or-group-email> `
-     -AccessRight RestrictAccess `
-     -Description "Cargo PAF send engine"
+1. Enable 2-Factor Authentication on your Google Account.
+2. Go to **Google Account → Security → App Passwords**.
+3. Create an app password for "Mail" on "Mac" — you'll get a 16-character
+   password.
+4. Set in `.env.local`:
+   ```
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your-email@gmail.com
+   SMTP_PASS=your-16-char-app-password
+   SMTP_FROM=your-email@gmail.com
+   MAIL_DRIVER=smtp
    ```
 
-6. In the app, add a mailbox config (via **Set up your mailbox** after
-   first login) whose **operational mailbox** matches a real shared
-   mailbox this app registration is scoped to send from.
+For other providers, set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and
+`SMTP_PASS` accordingly.
+
+### 5b. Microsoft Graph (for Exchange Online / prealert@fedex.com — Phase 2)
+
+When `prealert@fedex.com` is provisioned, switch to Graph API for sending
+from the shared mailbox. See **[docs/AZURE_AD_SETUP.md](AZURE_AD_SETUP.md)**
+for full setup instructions.
+
+Set `MAIL_DRIVER=graph` once the Azure AD app is configured.
 
 ***
 
-## 6. Vercel
+## 6. IMAP (inbound reply polling)
+
+The app polls a configured mailbox via IMAP every 5 minutes (via Vercel
+Cron) to pick up customer replies.
+
+**For Gmail (testing):**
+
+1. Use the same App Password generated in section 5a above.
+2. Set in `.env.local`:
+   ```
+   IMAP_HOST=imap.gmail.com
+   IMAP_PORT=993
+   IMAP_USER=your-monitoring-email@gmail.com
+   IMAP_PASS=your-16-char-app-password
+   ```
+
+The monitoring mailbox should receive BCC copies of every pre-alert sent,
+so customer replies to those pre-alerts can be captured.
+
+**For Exchange Online (Phase 2):**
+- IMAP is available on Exchange Online but must be enabled per mailbox.
+- Alternative: use Graph API subscriptions (webhooks) instead of polling.
+- See `docs/AZURE_AD_SETUP.md` for details.
+
+***
+
+## 7. Vercel
 
 1. Create a project at [vercel.com](https://vercel.com), linked to this
    repo (once pushed to a git remote).
@@ -170,7 +187,7 @@ changes to allow it:
 
 ***
 
-## 7. Google Gemini (unused until the next phase)
+## 8. Google Gemini (unused until the next phase)
 
 Create a key at [aistudio.google.com](https://aistudio.google.com) and
 save it as `GEMINI_API_KEY` now, so it's ready when the AI classifier/
@@ -178,7 +195,7 @@ draft/OCR layer (Milestone 7+) is built in the next phase.
 
 ***
 
-## 8. Seed data and first run
+## 9. Seed data and first run
 
 ```bash
 npm run seed
@@ -207,7 +224,7 @@ setup step on first login.
 
 ***
 
-## 9. Verifying each milestone
+## 10. Verifying each milestone
 
 - **Vitest unit tests** (Excel parsing/validation, sub-batch chunking,
   attachment matching — no external services needed):
@@ -226,11 +243,10 @@ setup step on first login.
   ```
 - **Manual send test (Milestone 4):** create a small batch (5-10 rows)
   using your own email addresses as recipients, launch it, and confirm
-  real emails arrive with attachments. Do this once against a real Vercel
-  Preview deployment with `QUEUE_DRIVER=qstash` and `MAIL_DRIVER=
-  power_automate` before considering the send engine done — the local
-  `inline` driver never exercises the real QStash → webhook → Power
-  Automate → callback path (see `docs/POWER_AUTOMATE.md`).
+  real emails arrive with attachments via SMTP or Graph.
+- **Inbox reply test (Milestone 6):** after configuring IMAP, send a reply
+  to the polling mailbox and confirm it appears in the Cases dashboard
+  within 5 minutes.
 - **Case claim race (Milestone 5):** open the same case in two browser
   sessions (different seeded users), claim it in one, then attempt to
   claim it in the other — the second should get a friendly conflict

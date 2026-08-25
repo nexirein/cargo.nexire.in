@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -37,7 +38,7 @@ interface StatusResponse {
   subBatches: SubBatch[];
 }
 
-const TERMINAL_STATUSES = ["completed", "partially_sent", "failed"];
+const TERMINAL_STATUSES = ["completed", "failed"];
 
 export function SendProgress({
   batchRunId,
@@ -119,7 +120,14 @@ export function SendProgress({
     batchRun.total_rows === 0
       ? 0
       : Math.round((done / batchRun.total_rows) * 100);
+  const retryingItems = items.filter((i) => i.send_status === "retrying");
   const failedItems = items.filter((i) => i.send_status === "failed");
+  const stuckItems = [...retryingItems, ...failedItems];
+  const showSummaryLink = ["completed", "failed", "partially_sent"].includes(batchRun.status);
+
+  async function requeueAllStuck() {
+    await Promise.allSettled(stuckItems.map((item) => requeue(item.id)));
+  }
 
   async function requeue(batchItemId: string) {
     const response = await fetch(`/api/batches/${batchRunId}/requeue-item`, {
@@ -183,11 +191,28 @@ export function SendProgress({
         </table>
       </div>
 
-      {failedItems.length > 0 ? (
+      {stuckItems.length > 0 && canRequeue ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-amber-800">
+              {stuckItems.length} item(s) stuck — {retryingItems.length} retrying, {failedItems.length} failed
+            </p>
+            <button
+              type="button"
+              onClick={requeueAllStuck}
+              className="rounded-md bg-amber-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-800"
+            >
+              Reset &amp; retry all
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {stuckItems.length > 0 ? (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-4 py-3">
             <p className="text-sm font-medium text-slate-900">
-              Failed sends ({failedItems.length})
+              Failed / retrying ({stuckItems.length})
             </p>
           </div>
           <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -195,18 +220,26 @@ export function SendProgress({
               <tr>
                 <th className="px-4 py-3">AWB</th>
                 <th className="px-4 py-3">Recipient</th>
+                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Reason</th>
                 {canRequeue ? <th className="px-4 py-3" /> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {failedItems.map((item) => (
+              {stuckItems.map((item) => (
                 <tr key={item.id}>
                   <td className="px-4 py-3 font-medium text-slate-900">
                     {item.awb}
                   </td>
                   <td className="px-4 py-3 text-slate-500">
                     {item.consignee_email}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      item.send_status === "failed" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"
+                    }`}>
+                      {item.send_status}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-red-600">
                     {item.failure_reason ?? "Unknown error"}
@@ -226,6 +259,17 @@ export function SendProgress({
               ))}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {showSummaryLink ? (
+        <div className="flex justify-center">
+          <Link
+            href={`/batches/${batchRunId}/summary`}
+            className="rounded-md bg-slate-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+          >
+            Go to summary →
+          </Link>
         </div>
       ) : null}
     </div>

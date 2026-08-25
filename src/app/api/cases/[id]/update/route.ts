@@ -48,6 +48,7 @@ export async function POST(
 
     const patch: Record<string, unknown> = {
       last_human_action_at: new Date().toISOString(),
+      human_ever_opened: true,
     };
     if (parsed.data.currentStatus !== undefined) {
       patch.current_status = parsed.data.currentStatus;
@@ -71,9 +72,15 @@ export async function POST(
       );
     }
 
+    await admin.rpc("increment_case_counter", {
+      p_case_id: id,
+      p_column: "human_actions_count",
+    });
+
     await admin.from("case_updates").insert({
       case_id: id,
       updated_by: user.id,
+      actor_type: "human",
       update_type: "status_change",
       old_values: {
         current_status: current.current_status,

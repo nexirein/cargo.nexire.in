@@ -1,8 +1,10 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentAppUser } from "@/lib/auth/session";
 import { WizardSteps } from "@/components/batches/wizard-steps";
+import { assertStep } from "@/lib/batches/guard-step";
 import { SendProgress } from "./send-progress";
+import { AiPreflightPanel } from "./ai-preflight";
 
 export default async function BatchSendPage({
   params,
@@ -18,7 +20,7 @@ export default async function BatchSendPage({
       supabase
         .from("batch_runs")
         .select(
-          "id, run_name, status, total_rows, total_sub_batches, sent_count, failed_count",
+          "id, run_name, status, total_rows, total_sub_batches, sent_count, failed_count, phase, pre_alert_type",
         )
         .eq("id", id)
         .maybeSingle(),
@@ -40,15 +42,24 @@ export default async function BatchSendPage({
     notFound();
   }
 
+  assertStep(id, "send", batchRun.status, batchRun.phase ?? "pre_alert");
+
+  const phase: string = (batchRun as any).phase ?? "pre_alert";
+  if (phase === "tp_hold") redirect(`/batches/${id}/summary`);
+
   return (
     <div>
-      <WizardSteps current="send" />
+      <WizardSteps current="send" phase={(batchRun as any).phase ?? "pre_alert"} preAlertType={(batchRun as any).pre_alert_type} />
       <h1 className="mt-4 text-2xl font-semibold text-slate-900">
         {batchRun.run_name}
       </h1>
       <p className="mt-1 text-sm text-slate-500">
         Sending updates live as each recipient is processed.
       </p>
+      <div className="mt-6">
+        <AiPreflightPanel batchRunId={id} totalItems={batchRun.total_rows} />
+      </div>
+
       <SendProgress
         batchRunId={id}
         canRequeue={user?.role === "admin" || user?.role === "lead"}

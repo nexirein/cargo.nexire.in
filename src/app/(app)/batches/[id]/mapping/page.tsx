@@ -12,7 +12,7 @@ export default async function BatchMappingPage({
   const supabase = await createClient();
   const { data: batch } = await supabase
     .from("batch_runs")
-    .select("id, run_name")
+    .select("id, run_name, phase, pre_alert_type")
     .eq("id", id)
     .maybeSingle();
 
@@ -20,17 +20,22 @@ export default async function BatchMappingPage({
     notFound();
   }
 
+  const phaseLabels: Record<string, string> = {
+    pre_alert: "Upload the pre-alert Excel sheet, then map its columns.",
+    post_arrival: "Upload the post-arrival Excel sheet (MAWB, IGM, etc).",
+    tp_hold: "Upload the TP Hold sheet from the IGM team.",
+  };
+
   return (
     <div>
-      <WizardSteps current="mapping" />
+      <WizardSteps current="mapping" phase={batch.phase ?? "pre_alert"} preAlertType={batch.pre_alert_type} />
       <h1 className="mt-4 text-2xl font-semibold text-slate-900">
         {batch.run_name}
       </h1>
       <p className="mt-1 text-sm text-slate-500">
-        Upload the pre-alert Excel sheet, then map its columns to AWB and
-        consignee email.
+        {phaseLabels[batch.phase ?? "pre_alert"]}
       </p>
-      <MappingWizard batchRunId={id} />
+      <MappingWizard batchRunId={id} phase={batch.phase ?? "pre_alert"} preAlertType={batch.pre_alert_type} />
     </div>
   );
 }

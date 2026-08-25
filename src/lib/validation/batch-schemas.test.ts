@@ -8,9 +8,11 @@ function row(overrides: Partial<MappedRow>): MappedRow {
     awb: "176-12345678",
     consigneeEmail: "consignee@example.com",
     consigneeName: null,
+    templateType: null,
+    fedexBroker: null,
     shipmentData: {},
     ...overrides,
-  };
+  } as MappedRow;
 }
 
 describe("validateMappedRows", () => {

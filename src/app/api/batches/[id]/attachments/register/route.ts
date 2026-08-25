@@ -8,10 +8,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const registerSchema = z.object({
   awb: z.string().min(1),
   originalName: z.string().min(1),
-  storagePath: z.string().min(1),
   sourceFormat: z.string().min(1),
   derivedFormat: z.string().optional(),
   checksum: z.string().optional(),
+  content: z.string().min(1),
 });
 
 // Used by both the plain-attachment upload step (M2) and the TIFF->PDF
@@ -49,7 +49,7 @@ export async function POST(
       original_name: parsed.data.originalName,
       source_format: parsed.data.sourceFormat,
       derived_format: parsed.data.derivedFormat ?? null,
-      storage_path: parsed.data.storagePath,
+      content: parsed.data.content,
       checksum: parsed.data.checksum ?? null,
     });
 

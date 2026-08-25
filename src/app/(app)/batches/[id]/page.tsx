@@ -1,22 +1,26 @@
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-const STATUS_TO_STEP: Record<string, string> = {
-  draft: "mapping",
-  validating: "mapping",
-  failed: "mapping",
-  ready: "attachments",
-  converting: "convert",
-  queued: "send",
-  sending: "send",
-  partially_sent: "send",
-  completed: "summary",
-  archived: "summary",
-};
+function resolveStep(status: string, phase: string): string {
+  if (phase === "tp_hold") {
+    if (["draft", "validating", "failed"].includes(status)) return "mapping";
+    return "summary";
+  }
+  if (phase === "post_arrival") {
+    if (["draft", "validating", "failed"].includes(status)) return "mapping";
+    if (status === "ready" || status === "converting") return "preview";
+    if (["queued", "sending", "partially_sent"].includes(status)) return "send";
+    return "summary";
+  }
+  const MAP: Record<string, string> = {
+    draft: "mapping", validating: "mapping", failed: "mapping",
+    ready: "review", converting: "convert",
+    queued: "send", sending: "send", partially_sent: "send",
+    completed: "summary", archived: "summary",
+  };
+  return MAP[status] ?? "preview";
+}
 
-// Bare /batches/:id has no UI of its own — it just resumes the wizard at
-// whichever step the batch's status implies, so a link to a batch always
-// lands somewhere useful regardless of where it was left off.
 export default async function BatchRedirectPage({
   params,
 }: {
@@ -26,7 +30,7 @@ export default async function BatchRedirectPage({
   const supabase = await createClient();
   const { data: batch } = await supabase
     .from("batch_runs")
-    .select("status")
+    .select("status, phase")
     .eq("id", id)
     .maybeSingle();
 
@@ -34,5 +38,5 @@ export default async function BatchRedirectPage({
     notFound();
   }
 
-  redirect(`/batches/${id}/${STATUS_TO_STEP[batch.status] ?? "preview"}`);
+  redirect(`/batches/${id}/${resolveStep(batch.status, batch.phase ?? "pre_alert")}`);
 }

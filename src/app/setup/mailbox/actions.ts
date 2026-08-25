@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { getCurrentAppUser } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit/log";
 
@@ -52,6 +53,10 @@ export async function saveMailboxConfig(formData: FormData) {
     action: "create",
     metadata: { operationalMailbox, taggedMailbox },
   });
+
+  // Refresh the session cookie before redirect so middleware recognises the user
+  const supabase = await createClient();
+  await supabase.auth.getUser();
 
   redirect("/dashboard");
 }

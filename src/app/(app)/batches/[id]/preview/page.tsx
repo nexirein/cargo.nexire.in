@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { WizardSteps } from "@/components/batches/wizard-steps";
-import { LaunchButton } from "./launch-button";
+import { assertStep } from "@/lib/batches/guard-step";
+import { AutoLaunch } from "./auto-launch";
+import { PreviewTable } from "./preview-table";
 
 export default async function BatchPreviewPage({
   params,
@@ -12,13 +15,15 @@ export default async function BatchPreviewPage({
   const supabase = await createClient();
   const { data: batch } = await supabase
     .from("batch_runs")
-    .select("id, run_name, status, total_rows, total_sub_batches")
+    .select("id, run_name, status, total_rows, total_sub_batches, phase, pre_alert_type")
     .eq("id", id)
     .maybeSingle();
 
   if (!batch) {
     notFound();
   }
+
+  assertStep(id, "preview", batch.status, batch.phase ?? "pre_alert");
 
   const { data: items } = await supabase
     .from("batch_items")
@@ -27,6 +32,9 @@ export default async function BatchPreviewPage({
     .order("awb");
 
   const rows = items ?? [];
+  const phase = batch.phase ?? "pre_alert";
+  const preAlertType = batch.pre_alert_type ?? "u_bond";
+  const isConsol = phase === "pre_alert" && preAlertType === "consol";
   const attached = rows.filter(
     (r) =>
       r.attachment_status === "matched" || r.attachment_status === "converted",
@@ -35,7 +43,7 @@ export default async function BatchPreviewPage({
 
   return (
     <div>
-      <WizardSteps current="preview" />
+      <WizardSteps current="preview" phase={phase} preAlertType={batch.pre_alert_type} />
       <h1 className="mt-4 text-2xl font-semibold text-slate-900">
         {batch.run_name}
       </h1>
@@ -43,64 +51,32 @@ export default async function BatchPreviewPage({
         Review everything before launching the send.
       </p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <SummaryCard label="Recipients" value={rows.length} />
-        <SummaryCard label="Sub-batches" value={batch.total_sub_batches} />
-        <SummaryCard label="With attachment" value={attached} />
-        <SummaryCard
-          label="Missing attachment"
-          value={missing}
-          warn={missing > 0}
-        />
-      </div>
-
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-3">AWB</th>
-              <th className="px-4 py-3">Consignee</th>
-              <th className="px-4 py-3">Email</th>
-              <th className="px-4 py-3">Attachment</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.slice(0, 25).map((row) => (
-              <tr key={row.id}>
-                <td className="px-4 py-3 font-medium text-slate-900">
-                  {row.awb}
-                </td>
-                <td className="px-4 py-3 text-slate-500">
-                  {row.consignee_name ?? "—"}
-                </td>
-                <td className="px-4 py-3 text-slate-500">
-                  {row.consignee_email}
-                </td>
-                <td className="px-4 py-3">
-                  {row.attachment_status === "matched" ||
-                  row.attachment_status === "converted" ? (
-                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                      attached
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                      missing
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {rows.length > 25 ? (
-          <p className="border-t border-slate-100 px-4 py-3 text-xs text-slate-400">
-            Showing 25 of {rows.length} recipients.
-          </p>
-        ) : null}
-      </div>
+      {!isConsol && phase === "pre_alert" ? (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <SummaryCard label="Recipients" value={rows.length} />
+          <SummaryCard label="Sub-batches" value={batch.total_sub_batches} />
+          <SummaryCard label="With attachment" value={attached} />
+          <SummaryCard label="Missing attachment" value={missing} warn={missing > 0} />
+        </div>
+      ) : (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <SummaryCard label="Recipients" value={rows.length} />
+          <SummaryCard label="Sub-batches" value={batch.total_sub_batches} />
+        </div>
+      )}
 
       <div className="mt-6">
-        <LaunchButton batchRunId={id} status={batch.status} />
+        <PreviewTable rows={rows} phase={phase} isConsol={isConsol} />
+      </div>
+
+      <div className="mt-6 flex items-center justify-between">
+        <Link
+          href={`/batches/${id}/${isConsol ? "review" : phase === "post_arrival" ? "validate" : "attachments"}`}
+          className="text-sm text-slate-500 hover:text-slate-700"
+        >
+          ← Back to {isConsol ? "review" : phase === "post_arrival" ? "validate" : "attachments"}
+        </Link>
+        <AutoLaunch batchRunId={id} status={batch.status} itemCount={rows.length} missingAttachmentCount={missing} />
       </div>
     </div>
   );

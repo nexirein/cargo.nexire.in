@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/requeue-stalled",
       "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/inbox/poll",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/process-reminders",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
