@@ -290,9 +290,9 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
           urgency: classification.urgency,
           auto_classified: true,
           auto_replied: true,
-          auto_closed: true,
+          auto_closed: false,
           human_review_required: false,
-          current_status: "closed",
+          current_status: "reply_sent",
         })
         .eq("id", caseId);
 
