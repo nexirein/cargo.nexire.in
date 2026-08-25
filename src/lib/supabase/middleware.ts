@@ -6,6 +6,15 @@ const PUBLIC_PATHS = ["/login", "/reset-password", "/auth", "/setup"];
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  const pathname = request.nextUrl.pathname;
+
+  // API routes authenticate via their own guards (CRON_SECRET, requireRole,
+  // etc.) — the Supabase session middleware must not intercept them, otherwise
+  // cron endpoints and server-to-server calls get redirected to /login.
+  if (pathname.startsWith("/api/")) {
+    return supabaseResponse;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,7 +40,6 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
   const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublicPath) {
