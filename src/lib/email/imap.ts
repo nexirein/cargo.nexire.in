@@ -58,11 +58,14 @@ function connect() {
  * Does NOT mark messages as \Seen — the caller must call markAsSeen() after
  * successfully ingesting each message, so a crash or error doesn't lose it.
  *
- * @param limit Maximum number of emails to fetch (default 10). Keeps IMAP
- *   fetch + MIME parsing fast so the time budget is spent on ingestion, not
- *   fetching old unseen emails that have piled up.
+ * Uses a two-pass approach for speed:
+ * 1. Lightweight fetch of UIDs + dates (no body parsing)
+ * 2. Sort newest-first, take top N, then fetch full content for those only
+ *
+ * This ensures the latest customer replies are always processed first,
+ * even when old unseen emails (notifications, bounces) pile up.
  */
-export async function pollInbox(limit = 10): Promise<FetchedEmail[]> {
+export async function pollInbox(limit = 30): Promise<FetchedEmail[]> {
   const client = connect();
 
   try {
@@ -70,10 +73,30 @@ export async function pollInbox(limit = 10): Promise<FetchedEmail[]> {
     const lock = await client.getMailboxLock("INBOX");
 
     try {
+      // Pass 1: lightweight — just UID + internalDate, no source/envelope
+      const candidates: { uid: number; date: Date }[] = [];
+      for await (const msg of client.fetch(
+        { seen: false },
+        { uid: true, internalDate: true },
+      )) {
+        candidates.push({
+          uid: msg.uid,
+          date: new Date(msg.internalDate ?? Date.now()),
+        });
+      }
+
+      // Sort newest-first and take top N
+      candidates.sort((a, b) => b.date.getTime() - a.date.getTime());
+      const topUids = new Set(candidates.slice(0, limit).map((c) => c.uid));
+
+      // Pass 2: full fetch only for the most recent N UIDs
       const emails: FetchedEmail[] = [];
+      const uidRange = topUids.size > 0
+        ? [...topUids].sort((a, b) => a - b).join(",")
+        : "1:*";
 
       for await (const message of client.fetch(
-        { seen: false },
+        { uid: uidRange },
         {
           uid: true,
           envelope: true,
@@ -82,8 +105,6 @@ export async function pollInbox(limit = 10): Promise<FetchedEmail[]> {
           internalDate: true,
         },
       )) {
-        if (emails.length >= limit) break;
-
         const envelope = message.envelope;
         if (!envelope) continue;
 

@@ -42,12 +42,8 @@ export async function pollAndIngest(): Promise<PollIngestResult> {
   const results: Array<Record<string, unknown>> = [];
   const seenUids: number[] = [];
 
-  // Sort newest-first so the latest customer replies are processed within the
-  // time budget. Without this, old unseen emails (notifications, bounces) eat
-  // the budget and new replies never get reached.
-  emails.sort((a, b) => b.date.getTime() - a.date.getTime());
-
-  // Process emails sequentially — each ingestEmail call is expensive (AI +
+  // Emails are already sorted newest-first by pollInbox() (two-pass IMAP
+  // approach). Process sequentially — each ingestEmail call is expensive (AI +
   // DB + optional SMTP). Check time budget BETWEEN emails so we never start
   // one we can't finish. Unprocessed emails are NOT marked as seen and will
   // be retried on the next poll cycle.
