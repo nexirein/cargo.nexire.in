@@ -255,8 +255,7 @@ export async function POST(request: Request) {
         body_clean: bodyHtml.replace(/<[^>]*>/g, ""),
         sender_email: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "",
         recipient_emails: [recipient],
-        in_reply_to: emailEvent?.message_id ? emailEvent.message_id.replace(/[<>]/g, "").trim() : null,
-        raw_payload: { draftId, approved: true },
+        raw_payload: { draftId, approved: true, inReplyTo: emailEvent?.message_id ? emailEvent.message_id.replace(/[<>]/g, "").trim() : null },
         received_at: now,
       });
 

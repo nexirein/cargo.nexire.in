@@ -68,9 +68,10 @@ export async function pollAndIngest(): Promise<PollIngestResult> {
         references: email.references,
       });
 
-      // Only mark as seen when truly ingested — NOT when "ignored" (which
-      // could be a transient DB error that should be retried).
-      if (result.status === "ingested") {
+      // Mark as seen for "ingested" (new) and "duplicate" (already in DB).
+      // Both are successfully processed — only "ignored" (transient DB error)
+      // should be retried on the next poll cycle.
+      if (result.status === "ingested" || result.status === "duplicate") {
         seenUids.push(email.uid);
       }
 

@@ -281,8 +281,7 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
         body_clean: draft.bodyText,
         sender_email: process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "",
         recipient_emails: [email.from],
-        in_reply_to: normalizedId,
-        raw_payload: { autoSend: true, route: "ai_auto_send", classification },
+        raw_payload: { autoSend: true, route: "ai_auto_send", classification, inReplyTo: normalizedId },
         received_at: now,
       });
 
