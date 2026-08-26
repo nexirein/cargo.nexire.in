@@ -58,12 +58,12 @@ function connect() {
  * Does NOT mark messages as \Seen — the caller must call markAsSeen() after
  * successfully ingesting each message, so a crash or error doesn't lose it.
  *
- * Uses a two-pass approach for speed:
- * 1. Lightweight fetch of UIDs + dates (no body parsing)
- * 2. Sort newest-first, take top N, then fetch full content for those only
+ * Two-pass approach for correctness:
+ * 1. Fetch ALL unseen UIDs + dates (lightweight — no body parsing)
+ * 2. Sort newest-first, take top N, fetch full content for those N only
  *
  * This ensures the latest customer replies are always processed first,
- * even when old unseen emails (notifications, bounces) pile up.
+ * even when old unseen emails pile up.
  */
 export async function pollInbox(limit = 30): Promise<FetchedEmail[]> {
   const client = connect();
@@ -74,6 +74,7 @@ export async function pollInbox(limit = 30): Promise<FetchedEmail[]> {
 
     try {
       // Pass 1: lightweight — just UID + internalDate, no source/envelope
+      // This is fast even for 100+ unseen emails (no MIME parsing).
       const candidates: { uid: number; date: Date }[] = [];
       for await (const msg of client.fetch(
         { seen: false },
@@ -85,18 +86,19 @@ export async function pollInbox(limit = 30): Promise<FetchedEmail[]> {
         });
       }
 
-      // Sort newest-first and take top N
-      candidates.sort((a, b) => b.date.getTime() - a.date.getTime());
-      const topUids = new Set(candidates.slice(0, limit).map((c) => c.uid));
+      // Sort newest-first (by date, tiebreak by higher UID = newer)
+      candidates.sort((a, b) => b.date.getTime() - a.date.getTime() || b.uid - a.uid);
+      const top = candidates.slice(0, limit);
 
-      // Pass 2: full fetch only for the most recent N UIDs
+      if (top.length === 0) return [];
+
+      // Pass 2: full fetch only for the top N UIDs.
+      // IMAP UID set with comma-separated values: "39,40,41,42"
+      const uidSet = top.map((c) => String(c.uid)).join(",");
       const emails: FetchedEmail[] = [];
-      const uidRange = topUids.size > 0
-        ? [...topUids].sort((a, b) => a - b).join(",")
-        : "1:*";
 
       for await (const message of client.fetch(
-        { uid: uidRange },
+        { uid: uidSet },
         {
           uid: true,
           envelope: true,

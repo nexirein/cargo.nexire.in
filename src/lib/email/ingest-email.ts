@@ -78,7 +78,6 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
       body_clean: email.textBody || email.htmlBody || "",
       sender_email: email.from,
       recipient_emails: [...new Set([...email.to, ...email.cc])],
-      in_reply_to: email.inReplyTo?.replace(/[<>]/g, "").trim() ?? null,
       conversation_id: null,
       raw_payload: {
         ...email,
@@ -90,6 +89,7 @@ export async function ingestEmail(email: IngestInput): Promise<IngestResult> {
     .single();
 
   if (insertError) {
+    console.error(`[ingest] insert failed: ${insertError.code} ${insertError.message} msgId=${normalizedId}`);
     return { status: "ignored", emailEventId: null, caseId: null };
   }
 
