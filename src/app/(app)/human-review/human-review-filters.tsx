@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 const STATUS_OPTIONS = [
   { value: "", label: "Default (AI-unhandled)" },
   { value: "reply_received", label: "Reply Received" },
+  { value: "reply_sent", label: "Reply Sent" },
   { value: "documents_provided", label: "Docs Provided" },
   { value: "boe_filed", label: "BOE Filed" },
   { value: "human_review", label: "Human Review" },

@@ -11,6 +11,7 @@ const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
   { value: "awaiting_reply", label: "Awaiting Reply" },
   { value: "reply_received", label: "Reply Received" },
+  { value: "reply_sent", label: "Reply Sent" },
   { value: "documents_provided", label: "Docs Provided" },
   { value: "boe_filed", label: "BOE Filed" },
   { value: "assessment_pending", label: "Assessment Pending" },
