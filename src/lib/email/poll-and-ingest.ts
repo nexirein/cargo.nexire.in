@@ -23,7 +23,10 @@ export interface PollIngestResult {
  * will be retried on the next poll cycle.
  */
 export async function pollAndIngest(): Promise<PollIngestResult> {
-  const emails = await pollInbox();
+  const START = Date.now();
+  const MAX_MS = 7_000; // stay under Vercel Hobby 10s limit with buffer
+
+  const emails = await pollInbox(10);
 
   if (emails.length === 0) {
     return {
@@ -35,9 +38,6 @@ export async function pollAndIngest(): Promise<PollIngestResult> {
       results: [],
     };
   }
-
-  const START = Date.now();
-  const MAX_MS = 7_000; // stay under Vercel Hobby 10s limit with buffer
 
   const results: Array<Record<string, unknown>> = [];
   const seenUids: number[] = [];
