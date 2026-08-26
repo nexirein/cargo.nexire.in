@@ -57,8 +57,12 @@ function connect() {
  * Poll the configured IMAP inbox for unseen messages.
  * Does NOT mark messages as \Seen — the caller must call markAsSeen() after
  * successfully ingesting each message, so a crash or error doesn't lose it.
+ *
+ * @param limit Maximum number of emails to fetch (default 10). Keeps IMAP
+ *   fetch + MIME parsing fast so the time budget is spent on ingestion, not
+ *   fetching old unseen emails that have piled up.
  */
-export async function pollInbox(): Promise<FetchedEmail[]> {
+export async function pollInbox(limit = 10): Promise<FetchedEmail[]> {
   const client = connect();
 
   try {
@@ -78,6 +82,8 @@ export async function pollInbox(): Promise<FetchedEmail[]> {
           internalDate: true,
         },
       )) {
+        if (emails.length >= limit) break;
+
         const envelope = message.envelope;
         if (!envelope) continue;
 
