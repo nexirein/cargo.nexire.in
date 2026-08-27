@@ -70,7 +70,8 @@ export function autofillShipmentRow(
   if (endResult) {
     const resolvedCt = resolveClearanceType(endResult);
     if (resolvedCt === "calling" || resolvedCt === "hold") {
-      // CALLING / Hold — not a resolved type, skip to master data
+      clearanceType = resolvedCt;
+      ctSource = "excel";
     } else if (resolvedCt && resolvedCt !== "febrk") {
 clearanceType = resolvedCt;
       ctSource = "excel";

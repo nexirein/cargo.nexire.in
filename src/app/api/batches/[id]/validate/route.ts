@@ -134,6 +134,27 @@ export async function POST(
     const mapped = mapRows(parsed, mappingResult.data);
     const { validRows, issues, emailStatuses } = validateMappedRows(mapped);
 
+    // Apply preview edits from the client (user edited cells in the preview table)
+    const previewEdits = body.previewEdits as Record<number, Record<string, string>> | undefined;
+    if (previewEdits) {
+      for (const row of validRows) {
+        const edits = previewEdits[row.rowNumber];
+        if (!edits) continue;
+        const mapping = mappingResult.data;
+        if (edits[mapping.awb]) row.awb = edits[mapping.awb].trim();
+        if (edits[mapping.consigneeEmail]) row.consigneeEmail = edits[mapping.consigneeEmail].trim();
+        if (mapping.consigneeName && edits[mapping.consigneeName]) row.consigneeName = edits[mapping.consigneeName].trim();
+        if (mapping.templateType && edits[mapping.templateType]) row.templateType = edits[mapping.templateType].trim();
+        if (mapping.fedexBroker && edits[mapping.fedexBroker]) row.fedexBroker = edits[mapping.fedexBroker].trim();
+        // Also update shipment data for non-mapped columns
+        for (const [key, val] of Object.entries(edits)) {
+          if (key !== mapping.awb && key !== mapping.consigneeEmail && key !== mapping.consigneeName && key !== mapping.templateType && key !== mapping.fedexBroker) {
+            row.shipmentData[key] = val;
+          }
+        }
+      }
+    }
+
     for (const row of validRows) {
       if (phase === "post_arrival") {
         if (!row.consigneeEmail) {
@@ -355,6 +376,10 @@ export async function POST(
 
     const subBatchSize = (batchRun.sub_batch_size ?? 25) as 25 | 50;
     const chunks = chunkIntoSubBatches(validRows, subBatchSize);
+
+    // Clean up existing sub_batches and batch_items from prior validation
+    await admin.from("batch_items").delete().eq("batch_run_id", id);
+    await admin.from("sub_batches").delete().eq("batch_run_id", id);
 
     const { data: insertedSubBatches, error: subBatchError } = await admin
       .from("sub_batches")

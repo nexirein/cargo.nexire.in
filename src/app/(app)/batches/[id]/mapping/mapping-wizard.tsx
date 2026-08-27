@@ -41,6 +41,7 @@ export function MappingWizard({ batchRunId, phase, preAlertType }: { batchRunId:
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string>("");
+  const [previewEdits, setPreviewEdits] = useState<Map<number, Record<string, string>>>(new Map());
 
   useEffect(() => {
     const supabase = createClient();
@@ -160,6 +161,19 @@ export function MappingWizard({ batchRunId, phase, preAlertType }: { batchRunId:
     setIsDragging(false);
   }, []);
 
+  function handlePreviewEdit(rowIndex: number, header: string, value: string) {
+    setPreviewEdits((prev) => {
+      const next = new Map(prev);
+      const rowEdits = next.get(rowIndex) ?? {};
+      next.set(rowIndex, { ...rowEdits, [header]: value });
+      return next;
+    });
+  }
+
+  function getPreviewValue(rowIndex: number, header: string, original: Record<string, string>): string {
+    return previewEdits.get(rowIndex)?.[header] ?? original[header] ?? "";
+  }
+
   async function handleValidate() {
     if (phase !== "tp_hold" && (!mapping.awb || !mapping.consigneeEmail)) {
       setError("Select both the AWB and consignee email columns.");
@@ -172,23 +186,33 @@ export function MappingWizard({ batchRunId, phase, preAlertType }: { batchRunId:
     setError(null);
     setStage("validating");
 
-    const response = await fetch(`/api/batches/${batchRunId}/validate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mapping: { awb: mapping.awb, consigneeEmail: mapping.consigneeEmail, consigneeName: mapping.consigneeName, templateType: mapping.templateType, fedexBroker: mapping.fedexBroker }, phase, preAlertType }),
-    });
-    const data = await response.json();
+    try {
+      const response = await fetch(`/api/batches/${batchRunId}/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mapping: { awb: mapping.awb, consigneeEmail: mapping.consigneeEmail, consigneeName: mapping.consigneeName, templateType: mapping.templateType, fedexBroker: mapping.fedexBroker },
+          phase,
+          preAlertType,
+          previewEdits: previewEdits.size > 0 ? Object.fromEntries(previewEdits) : undefined,
+        }),
+      });
+      const data = await response.json();
 
-    if (!response.ok) {
-      setError(data.error ?? "Could not validate this file.");
+      if (!response.ok) {
+        setError(data.error ?? "Could not validate this file.");
+        setStage("mapping");
+        return;
+      }
+
+      if (phase === "tp_hold" || data.autoProcessed) {
+        router.push(`/batches/${batchRunId}/summary`);
+      } else {
+        router.push(`/batches/${batchRunId}/validate`);
+      }
+    } catch (err) {
+      setError(`Network error: ${err instanceof Error ? err.message : "Unknown error"}`);
       setStage("mapping");
-      return;
-    }
-
-    if (phase === "tp_hold" || data.autoProcessed) {
-      router.push(`/batches/${batchRunId}/summary`);
-    } else {
-      router.push(`/batches/${batchRunId}/validate`);
     }
   }
 
@@ -410,9 +434,14 @@ export function MappingWizard({ batchRunId, phase, preAlertType }: { batchRunId:
                       {parseData.headers.map((header) => (
                         <td
                           key={header}
-                          className="whitespace-nowrap px-3 py-2 text-slate-600"
+                          className="whitespace-nowrap px-1 py-0.5"
                         >
-                          {row[header]}
+                          <input
+                            type="text"
+                            value={getPreviewValue(i, header, row)}
+                            onChange={(e) => handlePreviewEdit(i, header, e.target.value)}
+                            className="w-full border-0 bg-transparent px-2 py-1 text-xs text-slate-600 outline-none ring-1 ring-transparent focus:border-slate-400 focus:ring-1 focus:ring-slate-400"
+                          />
                         </td>
                       ))}
                     </tr>
